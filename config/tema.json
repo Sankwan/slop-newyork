@@ -1,0 +1,116 @@
+{
+  "id": "tema",
+  "name": "Tema",
+  "_comment": "bbox is [south, west, north, east]: Tema Harbour (5.633 N) to the Tema Motorway Interchange (5.686 N, -0.015) and Communities 1-12. The west and south edges were extended on 2026-10-23 by whole chunks, so the chunks downloaded before are reused (see 'legacy'). origin is Community 1 / the Prime Meridian.",
+  "origin": [
+    5.667,
+    0.0
+  ],
+  "bbox": [
+    5.615,
+    -0.031667,
+    5.695,
+    0.035
+  ],
+  "bearingDeg": "auto",
+  "tileSize": 500,
+  "fetchChunkDeg": 0.02,
+  "legacy": {
+    "bbox": [
+      5.635,
+      -0.015,
+      5.695,
+      0.035
+    ],
+    "chunkDeg": 0.02
+  },
+  "rawDirs": [
+    "data/raw/tema",
+    "../accra-city-sim/data/raw/tema"
+  ],
+  "numberedPlaces": "Community",
+  "spawnSight": "c1market",
+  "sights": [
+    {
+      "id": "c1market",
+      "name": "Community 1 Market",
+      "match": "^(Tema )?Community (1|One) Market"
+    },
+    {
+      "id": "harbour",
+      "name": "Tema Harbour",
+      "match": "^Tema (Port|Harbour)$",
+      "at": [
+        5.6333,
+        0.0003
+      ]
+    },
+    {
+      "id": "fishing",
+      "name": "Fishing Harbour",
+      "match": "Fishing Harbour",
+      "at": [
+        5.6355,
+        0.0115
+      ]
+    },
+    {
+      "id": "hospital",
+      "name": "Tema General Hospital",
+      "match": "Tema General Hospital"
+    },
+    {
+      "id": "stadium",
+      "name": "Tema Sports Stadium",
+      "match": "Tema (Sports )?Stadium|Community One Stadium"
+    },
+    {
+      "id": "station",
+      "name": "Tema Railway Station",
+      "match": "Tema (Railway )?Station|Community 1 Train Station"
+    },
+    {
+      "id": "interchange",
+      "name": "Tema Motorway Interchange",
+      "match": "Tema Motorway Interchange",
+      "at": [
+        5.6856,
+        -0.0146
+      ]
+    },
+    {
+      "id": "valco",
+      "name": "Valco Roundabout",
+      "match": "^Valco Roundabout"
+    },
+    {
+      "id": "c12",
+      "name": "Community 12 Roundabout",
+      "match": "^Community 12 Roundabout"
+    },
+    {
+      "id": "newtown",
+      "name": "Tema New Town",
+      "match": "Tema New ?Town"
+    },
+    {
+      "id": "refinery",
+      "name": "Tema Oil Refinery",
+      "match": "Tema Oil Refinery"
+    },
+    {
+      "id": "ashaiman",
+      "name": "Ashaiman",
+      "match": "^Ashaiman$"
+    },
+    {
+      "id": "meridian",
+      "name": "Greenwich Meridian",
+      "match": "^Meridian Street$",
+      "at": [
+        5.667,
+        0.0
+      ]
+    }
+  ]
+}

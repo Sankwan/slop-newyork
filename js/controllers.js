@@ -11,6 +11,19 @@ const { THREE } = window.NYC;
 const { ISLAND_BOUNDS, CENTRAL_PARK_BOUNDS, LANDMARK_SITES, getIslandBoundsAtZ, isTypingInField, blockAt, streetZ } = window.NYC;
 // Spawn on 5th Ave at 37th St, facing south down the avenue toward the Empire State Building (34th St)
 const SPAWN_Z = streetZ(37);
+// Another city (js/tema/city-config.js) gives its own start point: on a road, facing along it. Heading h faces
+// (sin h, cos h), the right-hand side is (-cos h, sin h).
+const SP = window.NYC.SPAWN || null;
+const spawnAt = (fwd, right, nycX, nycZ) => {
+  if (!SP) return [nycX, nycZ];
+  const h = SP.heading || 0;
+  return [SP.x + Math.sin(h) * fwd - Math.cos(h) * right, SP.z + Math.cos(h) * fwd + Math.sin(h) * right];
+};
+const SPAWN_HEADING = SP ? SP.heading || 0 : null;
+const [PERSON_X, PERSON_Z] = spawnAt(6, 7.5, -11.6, SPAWN_Z + 12);
+const [CAR_X, CAR_Z] = spawnAt(0, 2, 3.6, SPAWN_Z + 12);
+const [BIKE_X, BIKE_Z] = spawnAt(-14, 2.5, 5.2, SPAWN_Z - 8);
+const [HELI_X, HELI_Z] = spawnAt(-70, 0, -110, SPAWN_Z - 60);
 const {
   cityUniforms,
   createCarPaintMaterial,
@@ -63,24 +76,33 @@ function createTaxiDoorDecalTexture() {
   return tex;
 }
 
+// Ghana commercial number plate: yellow, black lettering, the flag and GH on the left
 function createNYLicensePlateTexture() {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#ffb81c';
+  ctx.fillStyle = '#f5c518';
   ctx.fillRect(0, 0, 256, 128);
-  ctx.fillStyle = '#0d2244';
-  ctx.fillRect(6, 6, 244, 24);
-  ctx.fillStyle = '#ffb81c';
-  ctx.font = '800 15px Inter, Arial, sans-serif';
+  ctx.strokeStyle = '#111317';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(4, 4, 248, 120);
+  // flag: red, gold, green with the black star
+  const bands = ['#ce1126', '#fcd116', '#006b3f'];
+  bands.forEach((col, k) => {
+    ctx.fillStyle = col;
+    ctx.fillRect(14, 22 + k * 18, 40, 18);
+  });
+  ctx.fillStyle = '#111317';
+  ctx.font = '900 16px Inter, Arial, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('NEW YORK', 128, 23);
-  ctx.fillStyle = '#0d2244';
-  ctx.font = '900 48px JetBrains Mono, monospace';
-  ctx.fillText('7Y48A', 128, 82);
-  ctx.font = '700 13px Inter, Arial, sans-serif';
-  ctx.fillText('NYC T&LC', 128, 114);
+  ctx.fillText('\u2605', 34, 54);
+  ctx.font = '800 20px Inter, Arial, sans-serif';
+  ctx.fillText('GH', 34, 104);
+  ctx.font = '900 44px Inter, Arial, sans-serif';
+  ctx.fillText('GT 4821', 156, 66);
+  ctx.font = '800 30px Inter, Arial, sans-serif';
+  ctx.fillText('- 24', 156, 104);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -330,8 +352,8 @@ class ThirdPersonControllerManager {
       mesh: root,
       crowd,
       rig,
-      position: new THREE.Vector3(-11.6, ISLAND_BOUNDS.sidewalkHeight, SPAWN_Z + 12),
-      heading: 0,
+      position: new THREE.Vector3(PERSON_X, ISLAND_BOUNDS.sidewalkHeight, PERSON_Z),
+      heading: SPAWN_HEADING ?? 0,
       speed: 0,
       verticalVel: 0,
       cameraTargetOffset: new THREE.Vector3(0, 1.55, 0),
@@ -351,7 +373,7 @@ class ThirdPersonControllerManager {
     root.add(chassisPivot);
 
     const spec = BODY_SPECS.taxi;
-    const taxiLoftMat = createLoftedCarMaterial(spec, 0xffbe14);
+    const taxiLoftMat = createLoftedCarMaterial(spec, 0x9aa0a6); // grey Ghana taxi
 
     // 1. 3D Lofted Taxi Body + Curved Windscreens + Crowned Roof + Side Mirrors + Roof Sign
     const carBodyGeo = buildCarGeometry(spec, false);
@@ -371,10 +393,9 @@ class ThirdPersonControllerManager {
       polygonOffsetUnits: -2
     });
     const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
-    for (const side of [-1, 1]) {
-      const decal = new THREE.Mesh(buildCarSidePatch(spec, side, doorMid - 0.36, doorMid + 0.36, 0.53, 0.81, 0.003), doorDecalMat);
-      chassisPivot.add(decal);
-    }
+    // (the NYC T&LC door decals are left off: Ghana taxis carry their colours on the quarters, see the taxi material)
+    void doorMid;
+    void doorDecalMat;
 
     // 3. High-Detail NY Empire Gold License Plates on the bumpers
     const nyPlateTex = createNYLicensePlateTexture();
@@ -432,14 +453,14 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'car',
-      label: 'NYC Yellow Taxi',
+      label: 'Taxi',
       mesh: root,
       chassisPivot,
       carState,
       headLights,
       wheels,
-      position: new THREE.Vector3(3.6, 0.0, SPAWN_Z + 12),
-      heading: 0,
+      position: new THREE.Vector3(CAR_X, 0.0, CAR_Z),
+      heading: SPAWN_HEADING ?? 0,
       speed: 0,
       vx: 0,
       vz: 0,
@@ -593,7 +614,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'cyclist',
-      label: 'NYC Bike Lane Cyclist',
+      label: 'Cyclist',
       mesh: root,
       leanPivot,
       frontWheel,
@@ -605,8 +626,8 @@ class ThirdPersonControllerManager {
       riderRig,
       helmet,
       headLight,
-      position: new THREE.Vector3(5.2, 0.0, SPAWN_Z - 8),
-      heading: 0,
+      position: new THREE.Vector3(BIKE_X, 0.0, BIKE_Z),
+      heading: SPAWN_HEADING ?? 0,
       speed: 0,
       leanAngle: 0,
       pedalPhase: 0,
@@ -689,8 +710,8 @@ class ThirdPersonControllerManager {
       tiltPivot,
       mainRotorPivot,
       tailRotorPivot,
-      position: new THREE.Vector3(-110, 96, SPAWN_Z - 60),
-      heading: 0.62,
+      position: new THREE.Vector3(HELI_X, 96, HELI_Z),
+      heading: SPAWN_HEADING ?? 0.62,
       speed: 0,
       verticalSpeed: 0,
       pitchAngle: 0,

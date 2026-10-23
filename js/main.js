@@ -82,7 +82,9 @@ async function initApp() {
   markInit('lighting');
 
   if (loadingStatus) {
-    loadingStatus.textContent = 'Constructing Manhattan Grid, Landmarks & Streetscape...';
+    loadingStatus.textContent = window.NYC.CITY
+      ? `Building ${window.NYC.CITY.name}: streets, curb islands, buildings & trees...`
+      : 'Constructing Manhattan Grid, Landmarks & Streetscape...';
   }
 
   // 3. Build Manhattan Geography, Iconic Landmarks, Blocks, Street Details & Traffic
@@ -118,9 +120,25 @@ async function initApp() {
 
   // Island-wide static geometry: chunk & distance-cull the small props, shadow stand-ins for the big casters
   // (scene-culling.js)
-  const cullingRoots = ['ManhattanCityGrid', 'ManhattanCityBlocks', 'ManhattanStreetDetails', 'ManhattanLandmarks', 'Boroughs']
+  const cullingRoots = ['ManhattanCityGrid', 'ManhattanCityBlocks', 'ManhattanStreetDetails', 'ManhattanLandmarks', 'Boroughs', 'CityGround', 'CityBuildings', 'CityStreetDetails']
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
+  // ?hide=a,b : hide scene parts by name (or 'traffic'); ?stats : draws & triangles in the console every 3 s
+  const params = new URLSearchParams(location.search);
+  for (const name of (params.get('hide') || '').split(',').filter(Boolean)) {
+    if (name === 'traffic') {
+      scene.traverse((o) => { if (/Traffic|Pedestrian/i.test(o.name)) o.visible = false; });
+      continue;
+    }
+    const o = scene.getObjectByName(name);
+    if (o) o.visible = false;
+  }
+  if (params.has('stats')) {
+    setInterval(() => {
+      const r = renderer.info.render;
+      console.log(`[stats] ${window.__NYC_APP ? window.__NYC_APP.getFps() : '?'} fps · ${r.drawCalls ?? r.calls} draws · ${Math.round((r.triangles || 0) / 1000)}k triangles`);
+    }, 3000);
+  }
   const cullingStats = setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
   markInit('culling');
 
@@ -173,6 +191,45 @@ async function initApp() {
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
+  // Another city (js/tema/city-config.js): its sights in the Teleport menu, its scenic cameras in the camera menu
+  if (window.NYC.SIGHTS && window.NYC.SIGHTS.length) {
+    const item = (attrs, name, sub) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      for (const [k, v] of Object.entries(attrs)) b.setAttribute(k, v);
+      const n = document.createElement('span');
+      n.className = 'pop-name';
+      n.textContent = name;
+      b.appendChild(n);
+      if (sub) {
+        const s = document.createElement('span');
+        s.className = 'pop-sub';
+        s.textContent = sub;
+        b.appendChild(s);
+      }
+      return b;
+    };
+    const pop = document.getElementById('teleport-popover');
+    if (pop) {
+      for (const b of pop.querySelectorAll('[data-teleport]')) b.remove();
+      const title = pop.querySelector('.pop-title');
+      if (title) title.textContent = `${window.NYC.CITY.name}: go to`;
+      pop.append(item({ class: 'pop-item tp-btn', 'data-teleport': 'start' }, 'Start', window.NYC.districtAt(window.NYC.SPAWN.x, window.NYC.SPAWN.z)));
+      for (const s of window.NYC.SIGHTS) {
+        const sub = [s.sub, s.district].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
+        pop.append(item({ class: 'pop-item tp-btn', 'data-teleport': s.id }, s.name, sub));
+      }
+    }
+    const camPop = document.getElementById('camera-popover');
+    const drone = document.getElementById('cam-drone');
+    if (camPop && drone) {
+      for (const b of camPop.querySelectorAll('[data-camera]')) {
+        if (!CAMERA_PRESETS.some((p) => p.id === b.getAttribute('data-camera'))) b.remove();
+      }
+      for (const p of CAMERA_PRESETS.filter((q) => q.pos)) drone.before(item({ class: 'pop-item cam-btn', 'data-camera': p.id, id: `cam-${p.id}` }, p.name));
+    }
+  }
+
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const timeButtons = document.querySelectorAll('[data-time]');
@@ -198,7 +255,7 @@ async function initApp() {
     helicopter: [[['W', 'S'], 'Pitch'], [['A', 'D'], 'Yaw'], [['Space', 'E'], 'Ascend'], [['Q', 'C'], 'Descend'], [['Shift'], 'Boost']]
   };
   // Boosted top speeds in mph (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
-  const topSpeedMph = { person: 18, car: 81, cyclist: 43, helicopter: 116 };
+  const topSpeedMph = { person: 30, car: 130, cyclist: 70, helicopter: 187 }; // km/h
 
   function renderControlHints(mode) {
     if (!elControlsHint) return;
@@ -462,14 +519,15 @@ async function initApp() {
         selectCamera('pov', true);
         break;
       case 'Digit8':
-        selectCamera('fifthAve', true);
-        break;
       case 'Digit9':
-        selectCamera('timesSquare', true);
+      case 'Digit0': {
+        const k = { Digit8: 0, Digit9: 1, Digit0: 2 }[e.code];
+        const sights = CAMERA_PRESETS.filter((p) => p.pos);
+        if (sights.length) {
+          if (sights[k]) selectCamera(sights[k].id, true);
+        } else selectCamera(['fifthAve', 'timesSquare', 'chryslerGCT'][k], true);
         break;
-      case 'Digit0':
-        selectCamera('chryslerGCT', true);
-        break;
+      }
       case 'KeyV':
         cycleCamera(e.shiftKey ? -1 : 1);
         break;
@@ -684,8 +742,8 @@ async function initApp() {
 
       const activeEnt = controllerManager.getActiveEntity();
       const mode = controllerManager.activeMode;
-      const mph = Math.round(Math.abs(activeEnt.speed) * 2.237);
-      const altFt = Math.max(0, Math.round(activeEnt.position.y * 3.281));
+      const mph = Math.round(Math.abs(activeEnt.speed) * 3.6); // km/h
+      const altFt = Math.max(0, Math.round(activeEnt.position.y)); // metres
 
       if (elFps) {
         elFps.textContent = String(currentFps);

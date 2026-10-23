@@ -61,17 +61,17 @@ function createBusDestinationTexture() {
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#0c0f14';
   ctx.fillRect(0, 0, 256, 64);
-  ctx.fillStyle = '#0058b8';
+  ctx.fillStyle = '#1f8a3e';
   ctx.fillRect(6, 8, 62, 48);
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 26px Inter, Arial, sans-serif';
+  ctx.font = '900 22px Inter, Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('M1', 37, 33);
+  ctx.fillText('TEMA', 37, 33);
   ctx.fillStyle = '#ff9d1c';
   ctx.font = '800 22px JetBrains Mono, monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('5 AV / HARLEM', 78, 33);
+  ctx.fillText('ACCRA-KUMASI', 76, 33);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -145,22 +145,26 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
   const taxiGeo = buildCarGeometry(BODY_SPECS.taxi, false);
   const sedanGeo = buildCarGeometry(BODY_SPECS.sedan, false);
   const suvGeo = buildCarGeometry(BODY_SPECS.suv, false);
+  const vanGeo = buildCarGeometry(BODY_SPECS.van, false); // trotros & express minibuses
   const carWheelLeftGeo = buildSteerableWheelGeo(BODY_SPECS.sedan, -1);
   const carWheelRightGeo = buildSteerableWheelGeo(BODY_SPECS.sedan, 1);
 
   const taxiMat = createLoftedCarMaterial(BODY_SPECS.taxi);
   const sedanMat = createLoftedCarMaterial(BODY_SPECS.sedan);
   const suvMat = createLoftedCarMaterial(BODY_SPECS.suv);
+  const vanMat = createLoftedCarMaterial(BODY_SPECS.van);
   const carWheelMat = createLoftedCarMaterial(BODY_SPECS.sedan, 0xffbe14);
 
-  const taxiYellow = new THREE.Color(0xffbe14);
+  // Ghana taxis: silver, grey, white, red & green bodies (the yellow-orange quarters come from the taxi material)
+  const taxiPalette = [0xa9adb2, 0x8a8f94, 0xe6e8ea, 0x9c2a2a, 0x7d8a6a, 0xb8bcc0].map((h) => new THREE.Color(h));
   const nypdWhite = new THREE.Color(0xf6f9fc);
   const sedanPalette = [
-    new THREE.Color(0x1c2026), // Black Town Car / Uber
-    new THREE.Color(0xcfd6de), // Metallic Silver Sedan
-    new THREE.Color(0x1d3b6c), // Deep Navy Sedan
-    new THREE.Color(0x52575e), // Graphite Grey Sedan
-    new THREE.Color(0x6e1f24)  // Burgundy Sedan
+    new THREE.Color(0xe9ecef), // White
+    new THREE.Color(0xcfd6de), // Metallic Silver
+    new THREE.Color(0x1c2026), // Black
+    new THREE.Color(0x52575e), // Graphite Grey
+    new THREE.Color(0xf4f5f6), // White
+    new THREE.Color(0x6e1f24)  // Burgundy
   ];
   const suvPalette = [
     new THREE.Color(0x16191e), // Executive Black Escalade/Suburban
@@ -174,20 +178,32 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
   let taxiCount = 0;
   let sedanCount = 0;
   let suvCount = 0;
+  let vanCount = 0;
   let nypdCount = 0;
+  // van liveries (carState.w): 2 white trotro with yellow & red stripes, 3 white express minibus, 4 yellow old-style
+  const VAN_LIVERIES = [[2, 0xf2f3f1], [2, 0xf2f3f1], [3, 0xf4f5f6], [4, 0xe9b31a]];
 
   for (let i = 0; i < NUM_CARS; i++) {
-    const isNYPD = (i % 10) === 6;
-    const isTaxi = !isNYPD && (i % 7) < 4;
-    const isSUV = !isNYPD && !isTaxi && (i % 2 === 0);
+    const isNYPD = false; // no police livery in this city (yet)
+    // Tema's traffic: about a fifth trotros & minibuses, a third taxis, the rest private cars
+    const isVan = (i % 5) === 2;
+    const isTaxi = !isVan && (i % 7) < 3;
+    const isSUV = !isVan && !isTaxi && (i % 2 === 0);
+    let livery = 0;
 
     let bodyType = 'sedan';
     let col;
 
-    if (isTaxi) {
+    if (isVan) {
+      bodyType = 'van';
+      vanCount++;
+      const [code, hex] = VAN_LIVERIES[vanCount % VAN_LIVERIES.length];
+      livery = code;
+      col = new THREE.Color(hex);
+    } else if (isTaxi) {
       bodyType = 'taxi';
       taxiCount++;
-      col = taxiYellow;
+      col = taxiPalette[i % taxiPalette.length];
     } else if (isSUV) {
       bodyType = 'suv';
       suvCount++;
@@ -198,10 +214,12 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
       if (isNYPD) nypdCount++;
     }
 
-    const car = createVehicle(false, isSUV ? 2.3 : 2.25, isSUV ? 0.92 : 0.86, isSUV ? 1.4 : 1.38, CAR_DRIVER, 10 + (i % 5) * 0.9);
+    const car = isVan
+      ? createVehicle(false, 2.95, 1.0, 1.78, CAR_DRIVER, 9 + (i % 5) * 0.8)
+      : createVehicle(false, isSUV ? 2.3 : 2.25, isSUV ? 0.92 : 0.86, isSUV ? 1.4 : 1.38, CAR_DRIVER, 10 + (i % 5) * 0.9);
     // paint as float32 values, so renderCar() can tell whether an instance slot's paint changes by comparing
     const paint = [Math.fround(col.r), Math.fround(col.g), Math.fround(col.b)];
-    Object.assign(car, { isTaxi, isNYPD, isSUV, bodyType, paint });
+    Object.assign(car, { isTaxi, isNYPD, isSUV, isVan, livery, bodyType, paint });
     cars.push(car);
   }
 
@@ -210,7 +228,7 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
   // can see (or whose shadow it may see), see renderCar(). Per-instance paint & lamp / livery state the car material
   // reads: brake lights, left (+x) & right (-x) turn signals, livery (1 = NYPD).
   const bodies = {};
-  for (const [kind, geo, count, mat] of [['taxi', taxiGeo, taxiCount, taxiMat], ['sedan', sedanGeo, sedanCount, sedanMat], ['suv', suvGeo, suvCount, suvMat]]) {
+  for (const [kind, geo, count, mat] of [['taxi', taxiGeo, taxiCount, taxiMat], ['sedan', sedanGeo, sedanCount, sedanMat], ['suv', suvGeo, suvCount, suvMat], ['van', vanGeo, vanCount, vanMat]]) {
     const n = Math.max(1, count);
     const lodMesh = (g) => {
       g.setAttribute('paintColor', new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3));
@@ -301,7 +319,11 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
   busWheelRightInst.castShadow = busWheelRightInst.receiveShadow = true;
 
   const buses = [];
-  for (let i = 0; i < NUM_BUSES; i++) buses.push(createVehicle(true, 6.0, 1.3, 3.6, BUS_DRIVER, 8 + (i % 3)));
+  for (let i = 0; i < NUM_BUSES; i++) {
+    const b = createVehicle(true, 6.0, 1.3, 3.6, BUS_DRIVER, 8 + (i % 3));
+    b.livery = i % 2; // 0 STC-style white & green, 1 VIP red
+    buses.push(b);
+  }
   const vehicles = [...cars, ...buses];
   group.add(busBodyInst, busHeaderInst, busWheelLeftInst, busWheelRightInst);
 
@@ -1237,7 +1259,7 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
     const hit = overlapWithPlayer(relX, relZ, rotY, halfW, halfL, pe.heading || 0, player.halfW, player.halfL);
     if (!hit) return;
     const { nx, nz, pen, localX, localZ, pSin, pCos } = hit;
-    const massRatio = v.bus ? 0.15 : v.isSUV ? 0.58 : 1.0 - player.push;
+    const massRatio = v.bus ? 0.15 : v.isVan ? 0.4 : v.isSUV ? 0.58 : 1.0 - player.push;
     const pPush = 1.0 - massRatio;
     pe.position.x += nx * pen * pPush;
     pe.position.z += nz * pen * pPush;
@@ -1602,7 +1624,7 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
     const b0 = c.acc < -0.8 || c.speed < 0.3 ? 1 : 0;
     const b1 = blinkOn && c.blink < 0 ? 1 : 0;
     const b2 = blinkOn && c.blink > 0 ? 1 : 0;
-    const b3 = c.isNYPD ? 1 : 0;
+    const b3 = c.isNYPD ? 1 : c.livery || 0;
     if (state[o4] !== b0 || state[o4 + 1] !== b1 || state[o4 + 2] !== b2 || state[o4 + 3] !== b3) {
       state[o4] = b0;
       state[o4 + 1] = b1;
@@ -1615,7 +1637,8 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
     const visIdx = visibleCars++;
     dummy.rotation.set(0, rotY, 0, 'YXZ');
     dummy.position.set(c.x, 0.018, c.z);
-    dummy.scale.set(2.22, 1.0, 5.05);
+    if (c.isVan) dummy.scale.set(2.4, 1.0, 6.4);
+    else dummy.scale.set(2.22, 1.0, 5.05);
     dummy.updateMatrix();
     carShadowInst.setMatrixAt(visIdx, dummy.matrix);
 
@@ -1665,6 +1688,7 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
     busBodyInst.setMatrixAt(i, dummy.matrix);
     busHeaderInst.setMatrixAt(i, dummy.matrix);
     writeLampState(b, busStates.array, i * 4);
+    busStates.array[i * 4 + 3] = b.livery;
 
     const dxCam = b.x - camX;
     const dzCam = b.z - camZ;
@@ -1879,7 +1903,7 @@ function createTrafficSystem(scene, sidewalks, obstacles) {
       locate(v);
       knock(v, dt);
       pose(v, dt);
-      if (player.active) collideWithPlayer(v, v.yaw + v.yawOffset, v.bus ? 1.30 : v.isSUV ? 0.92 : 0.86, v.bus ? 5.72 : v.isSUV ? 2.22 : 2.18);
+      if (player.active) collideWithPlayer(v, v.yaw + v.yawOffset, v.bus ? 1.30 : v.isVan ? 1.0 : v.isSUV ? 0.92 : 0.86, v.bus ? 5.72 : v.isVan ? 2.9 : v.isSUV ? 2.22 : 2.18);
       if (v.vx * v.vx + v.vz * v.vz > 0.36) knockOn(v);
 
       if (v.bus) renderBus(v);
@@ -1993,7 +2017,7 @@ function createHighwayTraffic(scene, lanes) {
   scene.add(group);
   const KINDS = ['taxi', 'sedan', 'suv'];
   const PALETTES = {
-    taxi: [0xffbe14],
+    taxi: [0xa9adb2, 0x8a8f94, 0xe6e8ea, 0x9c2a2a, 0xb8bcc0],
     sedan: [0x1c2026, 0xcfd6de, 0x1d3b6c, 0x52575e, 0x6e1f24, 0x8a8f96, 0xe9ecef],
     suv: [0x16191e, 0xf0f3f7, 0x3a434d, 0x28382e, 0xbec6cf, 0x5b2a2a]
   };

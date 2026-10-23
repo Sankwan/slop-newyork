@@ -5,7 +5,18 @@
 
 const { THREE } = window.NYC;
 
-const CAMERA_PRESETS = [
+// Another city (js/tema/city-config.js SIGHTS): one scenic camera per sight, from across the street and above
+const SIGHT_CAMS = (window.NYC.SIGHTS || []).slice(0, 7).map((s, i) => {
+  const [tx, tz] = s.target;
+  const back = 70 + (i % 3) * 15;
+  const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+  return {
+    id: `sight_${s.id}`, name: s.name, short: s.name, category: 'scenic', fov: 50,
+    pos: [s.x - fx * back - fz * 25, 18 + (i % 3) * 6, s.z - fz * back + fx * 25],
+    look: [tx, 6, tz]
+  };
+});
+const NYC_PRESETS = [
   { id: 'chase',       name: '3rd-Person Chase',         short: 'Chase',       category: 'follow', fov: 56 },
   { id: 'action',      name: 'Low-Angle Action',         short: 'Action',      category: 'follow', fov: 60 },
   { id: 'pov',         name: 'First-Person / Cockpit',   short: 'POV / Dash',  category: 'follow', fov: 68 },
@@ -18,6 +29,9 @@ const CAMERA_PRESETS = [
   { id: 'waterfront',  name: 'East River & Skyline',     short: 'Skyline',     category: 'scenic', fov: 46 },
   { id: 'drone',       name: 'Auto-Director Aerial',     short: 'Director',    category: 'scenic', fov: 50 }
 ];
+const CAMERA_PRESETS = SIGHT_CAMS.length
+  ? [...NYC_PRESETS.filter((p) => p.category === 'follow'), ...SIGHT_CAMS, NYC_PRESETS.find((p) => p.id === 'drone')]
+  : NYC_PRESETS;
 
 class CameraSystem {
   constructor(domElement, controllerManager) {
@@ -297,16 +311,29 @@ class CameraSystem {
         break;
       }
 
+      default: {
+        // a sight's camera: a slow sway about its standpoint
+        const preset = CAMERA_PRESETS.find((p) => p.id === this.activePresetId);
+        if (preset && preset.pos) {
+          const sway = Math.sin(elapsed * 0.2) * 3.0;
+          desiredPos.set(preset.pos[0] + sway, preset.pos[1], preset.pos[2] - sway * 0.5);
+          desiredLook.set(preset.look[0], preset.look[1], preset.look[2]);
+        }
+        break;
+      }
+
       case 'drone': {
         const angle = elapsed * 0.07 + 0.65;
         const radius = 720.0 + Math.sin(elapsed * 0.23) * 140.0;
         const alt = 330.0 + Math.cos(elapsed * 0.19) * 90.0;
+        const c = window.NYC.SPAWN || { x: 60, z: 250 };
+        const low = window.NYC.SPAWN ? 0.6 : 1; // a low-rise city: fly lower, look at the street
         desiredPos.set(
-          Math.cos(angle) * radius + 60.0,
-          alt,
-          Math.sin(angle) * radius + 250.0
+          Math.cos(angle) * radius + c.x,
+          alt * low,
+          Math.sin(angle) * radius + c.z
         );
-        desiredLook.set(60.0, 160.0, 250.0);
+        desiredLook.set(c.x, window.NYC.SPAWN ? 20.0 : 160.0, c.z);
         break;
       }
     }

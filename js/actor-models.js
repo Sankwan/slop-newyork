@@ -308,6 +308,54 @@ const BODY_SPECS = {
   }
 };
 BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true });
+// Trotro / minibus: a high-roof panel van (Sprinter / Hiace class), 5.9 m long, 2 m wide, 2.45 m tall, short bonnet,
+// steep windscreen and a long glasshouse with a pillar between every side window. Liveries are painted per vehicle
+// from carState.w (createLoftedCarMaterial): 2 trotro stripes, 3 express-coach bands, 4 old-style two-tone.
+BODY_SPECS.van = {
+  name: 'van',
+  zFront: 2.95,
+  zRear: -2.95,
+  wheelRadius: 0.36,
+  wheelZ: 1.78,
+  wheelX: 0.86,
+  archGap: 0.07,
+  archFlare: 0.02,
+  tuck: 0.06,
+  halfWidth: [[2.95, 0.94], [1.78, 0.985], [0, 0.995], [-1.78, 0.99], [-2.95, 0.975]],
+  sill: [[2.95, 0.4], [1.6, 0.37], [-1.6, 0.37], [-2.95, 0.42]],
+  shoulder: [[2.95, 0.78], [0, 0.86], [-2.95, 0.88]],
+  edge: [[2.85, 1.0], [2.4, 1.12], [2.05, 1.24], [1.8, 1.3], [0, 1.34], [-2.95, 1.35]],
+  crown: [[2.85, 0.04], [2.1, 0.02], [1.9, 0.004], [-2.95, 0.004]],
+  tumble: [[2.95, 0.05], [0, 0.04], [-2.95, 0.045]],
+  nose: { halfWidth: [0.3, 0.74, 2], edge: [0.2, 0.86, 2.6], crown: [0.2, 0.01, 2], sill: [0.12, 0.5, 2], shoulder: [0.24, 0.7, 2] },
+  tail: { halfWidth: [0.12, 0.9, 3], edge: [0.05, 1.2, 3], crown: [0.05, 0, 2], sill: [0.1, 0.5, 2], shoulder: [0.1, 0.86, 3] },
+  cabin: {
+    cowl: 1.86,
+    roofFront: 1.12,
+    roofRear: -2.84,
+    deck: -2.9,
+    roofY: [[1.12, 2.4], [-0.9, 2.45], [-2.84, 2.42]],
+    rail: [0.86, 0.86],
+    inset: 0.03,
+    bulge: 0.008,
+    roofEdge: 0.07,
+    roofCrown: 0.03,
+    roofRound: 5,
+    pillars: [0.72, -0.28, -1.18, -2.08] // B pillar and the side-window pillars
+  },
+  doors: [1.84, 0.9, 0.72, -0.62], // driver door; the sliding door
+  handles: [1.0, -0.42],
+  headlight: [0.66, 0.96, 0.2, 0.075],
+  taillight: [0.9, 1.12, 0.06, 0.24],
+  grille: [0.86, 0.42, 0.1],
+  intake: [0.5, 0.48, 0.06],
+  plates: [0.56, 0.64],
+  bumperLine: [0.74, 0.74],
+  chrome: false,
+  cladding: 0,
+  sign: false,
+  rails: false
+};
 for (const spec of Object.values(BODY_SPECS)) {
   // Kept for code that places lamp flares: lamp heights (front, rear) and centres across the car
   spec.lamps = [spec.headlight[1], spec.taillight[1]];
@@ -1102,7 +1150,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   // ---- Colour ---------------------------------------------------------------------------------------------------
   // Liveries: NYPD (white with blue & light-blue side stripes, lettering on the front doors); the taxi's door badges
   // and medallion number
-  const isNYPD = step(0.5, state.w).mul(isSide).mul(isBody);
+  const isNYPD = step(0.5, state.w).mul(step(state.w, 1.5)).mul(isSide).mul(isBody);
   const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
   const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
   const band = smoothstep(0.495, 0.5, p.y).mul(smoothstep(0.645, 0.64, p.y)).mul(along);
@@ -1112,19 +1160,26 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     .mul(smoothstep(0.81, 0.805, p.y))
     .mul(step(abs(p.z.sub(doorMid)), 0.22));
   let painted = mix(mix(paint, color(0x1d3f8f), max(band, lettering).mul(isNYPD)), color(0x6fa8dc), pin.mul(isNYPD));
+  if (spec.name === 'van') {
+    // Minibus liveries along the sides (full length between the bumpers' ends), picked by carState.w:
+    // 2 trotro: white with a yellow band and a red pinstripe at the waist; 3 express coach: navy band, red stripe;
+    // 4 old-style two-tone: (yellow) body with two green bands low down
+    const run = smoothstep(spec.zRear + 0.1, spec.zRear + 0.2, p.z).mul(smoothstep(spec.zFront - 0.25, spec.zFront - 0.35, p.z)).mul(isSide).mul(isBody);
+    const bandY = (y0, y1) => smoothstep(y0 - 0.004, y0 + 0.004, p.y).mul(smoothstep(y1 + 0.004, y1 - 0.004, p.y)).mul(run);
+    const L = (k) => step(abs(state.w.sub(k)), 0.25);
+    painted = mix(painted, color(0xf3b81c), bandY(0.74, 0.86).mul(L(2)));
+    painted = mix(painted, color(0xc8202a), bandY(0.9, 0.94).mul(L(2)));
+    painted = mix(painted, color(0x1c2f6e), bandY(0.8, 1.0).mul(L(3)));
+    painted = mix(painted, color(0xd0262e), bandY(0.7, 0.75).mul(L(3)));
+    painted = mix(painted, color(0x1f7a3a), max(bandY(0.48, 0.66), bandY(0.72, 0.78)).mul(L(4)));
+  }
   if (spec.sign) {
-    const badge = roundedRect(vec2(p.z.sub(doorMid), p.y.sub(0.66)), vec2(0.21, 0.052), 0.012).mul(isSide).mul(isBody);
-    const emblem = smoothstep(0.042, 0.036, length(vec2(abs(p.z.sub(doorMid)).sub(0.15), p.y.sub(0.66))));
-    const letters = step(0.35, sin(p.z.mul(95.0)))
-      .mul(step(abs(p.z.sub(doorMid)), 0.1))
-      .mul(smoothstep(0.03, 0.026, abs(p.y.sub(0.66))));
-    const medallion = step(0.3, sin(p.z.mul(150.0)))
-      .mul(step(abs(p.z.sub(spec.zRear + 0.6)), 0.075))
-      .mul(smoothstep(0.016, 0.013, abs(p.y.sub(0.8))))
-      .mul(isSide)
-      .mul(isBody);
-    painted = mix(mix(painted, color(0x121417), badge), color(0xffbe14), max(emblem, letters).mul(badge));
-    painted = mix(painted, color(0x121417), medallion);
+    // Ghana taxi livery: the car keeps its own colour; the front and rear quarters (wings, corners & bumpers) are
+    // painted taxi yellow-orange. The bonnet and boot lid stay body colour (upward-facing surfaces are left out).
+    const frontQ = smoothstep(spec.zFront - 1.02, spec.zFront - 0.96, p.z);
+    const rearQ = smoothstep(spec.zRear + 1.02, spec.zRear + 0.96, p.z);
+    const notLid = one.sub(smoothstep(0.55, 0.8, n.y));
+    painted = mix(painted, color(0xf2a21b), max(frontQ, rearQ).mul(notLid).mul(isBody));
   }
 
   // Panel shading: soft occlusion low down & under the arch lips; unpainted cladding (SUVs); door shut lines &
@@ -1477,12 +1532,15 @@ function createLoftedBusMaterial() {
   const glass = clamp(max(max(frontGlass, rearGlass), max(max(sideBand.mul(mullion), driverWin), max(d0.glass, d1.glass))), 0.0, 1.0);
   const seal = clamp(max(max(frontSeal, rearSeal), max(max(sideSeal, signBand), doorFrame)), 0.0, 1.0);
 
-  // MTA livery
+  // Ghanaian intercity livery (STC-style): white body, green band, red pinstripe, dark skirt
   const shadeY = smoothstep(0.34, 1.2, p.y).mul(0.2).add(0.8);
   const blueStripe = smoothstep(0.9, 0.93, p.y).mul(smoothstep(1.2, 1.17, p.y));
   const cyanRibbon = smoothstep(0.84, 0.86, p.y).mul(smoothstep(0.885, 0.865, p.y));
   const skirt = smoothstep(0.53, 0.5, p.y);
-  const livery = mix(mix(mix(color(0xf0f4f8), color(0x0058b8), blueStripe), color(0x00a8e8), cyanRibbon), color(0x1c2026), skirt).mul(shadeY);
+  const stc = mix(mix(color(0xf2f4f2), color(0x1f8a3e), blueStripe), color(0xd2232a), cyanRibbon);
+  // VIP-style coach: deep red all over, a white pinstripe at the waist
+  const vip = mix(color(0xb3121b), color(0xf4f4f4), cyanRibbon);
+  const livery = mix(mix(stc, vip, step(0.5, state.w)), color(0x1c2026), skirt).mul(shadeY);
 
   // Lamps: twin round headlamps & amber turn signals in black pods; red tail / brake light columns, amber turn &
   // white reverse lamps at the rear corners; plates
